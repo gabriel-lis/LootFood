@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulação de Pedidos - AV3</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Arial, Helvetica, sans-serif;
+    background: #f4f5f7; color: #222;
+  }
+  header { background: #ffae00; color: #fff; padding: 20px 24px; }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header p  { margin: 4px 0 0; opacity: .9; font-size: .95rem; }
+  main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+
+  .card {
+    background: #fff; border-radius: 10px; padding: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.12); margin-bottom: 20px;
+  }
+  form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  label { display: flex; flex-direction: column; font-weight: bold; font-size: .9rem; gap: 6px; }
+  input[type=number] {
+    padding: 10px; width: 140px; border: 1px solid #bbb; border-radius: 6px; font-size: 1rem;
+  }
+  button {
+    padding: 11px 20px; border: 0; border-radius: 6px; font-size: 1rem;
+    cursor: pointer; color: #fff; background: #141414;
+  }
+  button.sec { background: #616060; }
+  #btn-resetar {background: #fd0000;}
+  button:disabled { opacity: .6; cursor: wait; }
+
+  #msg { margin-top: 14px; padding: 10px 14px; border-radius: 6px; display: none; }
+  #msg.ok   { display: block; background: #e3f6e8; color: #17692e; }
+  #msg.erro { display: block; background: #fde5e5; color: #a11616; }
+
+  .resumo { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .resumo div { background: #f4f5f7; padding: 10px 16px; border-radius: 8px; }
+  .resumo strong { display: block; font-size: 1.3rem; }
+
+  .tabela-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+  th { background: #fafafa; }
+  .status {
+    background: #e3f6e8; color: #17692e; padding: 3px 8px;
+    border-radius: 12px; font-size: .8rem;
+  }
+  .vazio { text-align: center; color: #777; padding: 24px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LootFood — Seu App de Delivery</h1>
+  <p>Faça seu pedido agora!</p>
+</header>
+
+<main>
+  <section class="card">
+    <form id="form-simular">
+      <label>
+        Quantidade de pedidos
+        <input type="number" id="qtd" name="qtd" min="1" max="100" value="10" required>
+      </label>
+      <button type="submit" id="btn-simular">Simular pedidos</button>
+      <button type="button" id="btn-atualizar" class="sec">Atualizar lista</button>
+      <button type="button" id="btn-resetar" class="sec">Resetar lista</button>
+    </form>
+    <div id="msg" role="status"></div>
+  </section>
+
+  <section class="card">
+    <h2 style="margin-top:0">Pedidos processados</h2>
+
+    <div class="resumo">
+      <div><span>Total de pedidos</span><strong id="r-total">0</strong></div>
+      <div><span>Valor somado</span><strong id="r-valor">R$ 0,00</strong></div>
+    </div>
+
+    <div class="tabela-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nº</th><th>Cliente</th><th>Itens</th><th>Entregador</th>
+            <th>Data/Hora</th><th>Status</th><th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="corpo">
+          <tr><td colspan="7" class="vazio">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+  const form      = document.getElementById('form-simular');
+  const btnSim    = document.getElementById('btn-simular');
+  const btnAtual  = document.getElementById('btn-atualizar');
+  const corpo     = document.getElementById('corpo');
+  const msg       = document.getElementById('msg');
+
+  const moeda = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  function mostrarMensagem(texto, tipo) {
+    msg.textContent = texto;          // textContent evita injeção de HTML (XSS)
+    msg.className = tipo;
+  }
+
+  // Cria uma célula de tabela com texto seguro
+  function celula(texto, classe) {
+    const td = document.createElement('td');
+    if (classe) {
+      const span = document.createElement('span');
+      span.className = classe;
+      span.textContent = texto;
+      td.appendChild(span);
+    } else {
+      td.textContent = texto;
+    }
+    return td;
+  }
+
+  function desenharTabela(pedidos) {
+    corpo.innerHTML = '';
+
+    if (pedidos.length === 0) {
+      corpo.innerHTML = '<tr><td colspan="7" class="vazio">Nenhum pedido ainda. Clique em "Simular pedidos".</td></tr>';
+    }
+
+    let soma = 0;
+    pedidos.forEach(p => {
+      soma += Number(p.valor_total);
+      const tr = document.createElement('tr');
+      tr.appendChild(celula('#' + p.id_pedido));
+      tr.appendChild(celula(p.cliente));
+      tr.appendChild(celula(p.itens || '-'));
+      tr.appendChild(celula(p.entregador));
+      tr.appendChild(celula(p.data_hora));
+      tr.appendChild(celula(p.status, 'status'));
+      tr.appendChild(celula(moeda(p.valor_total)));
+      corpo.appendChild(tr);
+    });
+
+    document.getElementById('r-total').textContent = pedidos.length;
+    document.getElementById('r-valor').textContent = moeda(soma);
+  }
+
+  async function chamarApi(acao, opcoes) {
+    const resposta = await fetch('api.php?acao=' + acao, opcoes);
+    const texto = await resposta.text();
+
+    let dados;
+    try {
+      dados = JSON.parse(texto);
+    } catch (e) {
+      throw new Error(
+        'O servidor não devolveu JSON. O PHP provavelmente não está sendo executado. ' +
+        'Abra a página por http://localhost/... (Apache do XAMPP) ou use "php -S localhost:8000", ' +
+        'e não por file:// ou Live Server.'
+      );
+    }
+
+    if (!resposta.ok) throw new Error(dados.erro || 'Erro desconhecido');
+    return dados;
+  }
+
+  async function carregarLista() {
+    try {
+      const dados = await chamarApi('listar');
+      desenharTabela(dados.pedidos);
+    } catch (e) {
+      mostrarMensagem(e.message, 'erro');
+      corpo.innerHTML = '<tr><td colspan="7" class="vazio">Não foi possível carregar os pedidos.</td></tr>';
+    }
+  }
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    btnSim.disabled = true;
+    btnSim.textContent = 'Processando...';
+    mostrarMensagem('', '');
+    msg.style.display = 'none';
+
+    try {
+      const dados = await chamarApi('simular', { method: 'POST', body: new FormData(form) });
+      desenharTabela(dados.pedidos);
+      msg.style.display = '';
+      mostrarMensagem(dados.criados + ' pedidos simulados e gravados com sucesso!', 'ok');
+    } catch (e) {
+      msg.style.display = '';
+      mostrarMensagem(e.message, 'erro');
+    } finally {
+      btnSim.disabled = false;
+      btnSim.textContent = 'Simular pedidos';
+    }
+  });
+
+  document.getElementById('btn-resetar').addEventListener('click', async (ev) => {
+    if (!confirm('Apagar TODOS os pedidos? Esta ação não pode ser desfeita.')) return;
+
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    msg.style.display = '';
+
+    try {
+      const dados = await chamarApi('resetar', { method: 'POST' });
+      desenharTabela(dados.pedidos);
+      mostrarMensagem('Lista resetada com sucesso!', 'ok');
+    } catch (e) {
+      mostrarMensagem(e.message, 'erro');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  btnAtual.addEventListener('click', carregarLista);
+  carregarLista();
+</script>
+</body>
+</html>
