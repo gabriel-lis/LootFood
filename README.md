@@ -1,2 +1,2 @@
 # LootFood
-Seu app de delivery.
+Site criado como prova da faculdade de TI.
